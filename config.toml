@@ -13,7 +13,7 @@
 # use grunt task `build` to synchronize assets
 
 baseURL = "https://italo-batista.github.io/"
-publishDir = "../ds_portfolio"
+publishDir = "../analisografia"
 languageCode = "en-us"
 defaultContentLanguage = "en-us"
 title = "Italo's Blog"
