@@ -1,0 +1,164 @@
+---
+title: "Intervalos de confiança"
+author: "Italo Batista"
+date: "2017-08-01"
+---
+
+
+
+<div id="preambulo" class="section level1">
+<h1>Preâmbulo</h1>
+<p>Esta análise, realizada no contexto da disciplina Análise de Dados 1 (Computação @ UFCG), tem por objetivo avaliar a popularidade de linguagens de programação no período entre 2016 e 2017 segundo dados registrados no GitHub. Essa análise serve de mote para trabalharmos conceitos de <em>inferência</em>, <em>intervalos de confiança</em>, <em>significância</em>, entre outros.</p>
+<p>A amostra contém informações sobre quantos usuários fizeram atividade no GitHub usando uma determinada linguagem de programação. É importante ressaltar que não temos dados de todos os repositórios nem de todos os usuários. Temos apenas uma amostra. Iremos usar técnicas de inferência para podermos fazer afirmações sobre toda a população a partir dos dados da amostra.</p>
+</div>
+<div id="perguntas" class="section level1">
+<h1>Perguntas</h1>
+<p>Iremos orientar esta análise segundo as seguintes perguntas:</p>
+<ul>
+<li>Há alguma época do ano com maior movimentação no github?</li>
+<li>E qual trimestre do ano com a maior movimentação no github?</li>
+<li>Há algum dia da semana em que as pessoas mais programem?</li>
+<li>Há algum período do mês (início, meio ou fim) em que as pessoas programem mais?</li>
+</ul>
+<p>Apenas para ter uma visualização da amostra:</p>
+<pre class="r"><code>head(dados)</code></pre>
+<pre><code>##   file_extension month_day the_month the_year users full_date week_day
+## 1             md        18         2     2016 10279 18-2-2016   quinta
+## 2             md        17         2     2016 10208 17-2-2016   quarta
+## 3             md        27         1     2016 10118 27-1-2016   quarta
+## 4             md        16         2     2016 10045 16-2-2016    terça
+## 5             md        26         1     2016 10020 26-1-2016    terça
+## 6             md        21         3     2017 10015 21-3-2017    terça</code></pre>
+<pre class="r"><code>dados %&gt;%
+  ggplot(aes(x = file_extension, y = users, color=the_month)) +
+  geom_jitter(width = .2, alpha=0.6, size=1) +
+  scale_x_discrete(expand=c(0.01, 0)) +
+  labs(title = &quot;Atividade de usuários Python&quot;, x = &quot;Linguagens de programação&quot;, y = &quot;Quantidade de usuários&quot;) +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(axis.ticks.x=element_blank(), axis.text.x=element_blank())</code></pre>
+<p><img src="/blog/inferencies-report-p2_pt-br_files/figure-html/unnamed-chunk-4-1.png" width="864" /></p>
+<p>Cada conjunto de pontos agrupados verticalmente é uma linguagem de programação. Vemos que as linguagens que são usadas de modo bem distintos. De interessante, há um grupo de linguagens, inclusive grande, que os programadores usam bem pouco. Há também uma linguagem que é bastante usada, inclusive se dispersando bastante de todas as outras, inclusive as mais usadas. Outra coisa também que notamos é que o topo dos grupos verticais no geral é azul escuro, que representa uma atividade feita nos primeiros meses do ano. Será que conseguiresmos afirmar que o período de maior movimentação no github é no início do ano?</p>
+<p>Visualizando uma “timeline”:</p>
+<pre class="r"><code>timeline = dados %&gt;% group_by(the_year, the_month) %&gt;% mutate(users_month = sum(users))
+
+max = max(timeline$users_month) + 10000
+min = min(timeline$users_month) - 1000
+
+timeline %&gt;%
+  ggplot(aes(x = the_month, y = users_month, colour = as.factor(the_year))) + 
+  geom_point() +
+  geom_line() +  
+  scale_x_continuous(breaks=c(1:12)) + 
+  scale_color_manual(values=c(&quot;gold3&quot;, &quot;darkgrey&quot;)) +
+  ylim(min, max) +
+  labs(title = &quot;Edições por Mês (em todas as linguagens)&quot;, x = &quot;Mês&quot; , y= &quot;Número de usuários\nque fizeram edições&quot;, colour=&quot;Ano&quot;)</code></pre>
+<p><img src="/blog/inferencies-report-p2_pt-br_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>Com a timeline, a gente também consegue entender que os primeiros meses do ano parecem ser mais produtivos.</p>
+<p>Vamos às nossas perguntas!</p>
+<div id="ha-alguma-epoca-do-ano-com-maior-movimentacao-no-github" class="section level2">
+<h2>Há alguma época do ano com maior movimentação no github?</h2>
+<p>Para responder a essa pergunta, vamos dividir os dados entre os anos de 2016 e 2017 e trabalhar apenas com os dados de 2016.</p>
+<pre class="r"><code>dados.2016 = dados %&gt;% filter(the_year == 2016)
+dados.2017 = dados %&gt;% filter(the_year == 2017)</code></pre>
+<pre class="r"><code>months = c(1:12)
+experiment = data.frame()
+
+for(m in months){
+  b = bootstrap(subset(dados.2016, the_month==m) , sd(users))
+  month.sd = CI.percentile(b, probs = c(.025, .975))
+  names(month.sd) = c(&#39;X2.5&#39;, &#39;X97.5&#39;)
+  month.sd$month = m
+  experiment = data.frame(rbind(experiment, data.frame(month.sd)))
+}</code></pre>
+<pre class="r"><code>experiment %&gt;% 
+  ggplot(aes(x=month, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x=&quot;Mês&quot;, y=&quot;Intervalo de confiança&quot;) +
+  scale_x_discrete(limits=c(&#39;jan&#39;, &#39;fev&#39;, &#39;mar&#39;, &#39;abril&#39;, &#39;maio&#39;, &#39;jun&#39;, &#39;jul&#39;, &#39;ago&#39;, &#39;set&#39;, &#39;out&#39;, &#39;nov&#39;, &#39;dez&#39;))</code></pre>
+<p><img src="/blog/inferencies-report-p2_pt-br_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<pre class="r"><code>  # + geom_hline(yintercept = 0, colour = &quot;darkblue&quot;)</code></pre>
+<p>Vemos que há algumas sobreposições de intervalos. Contudo, no geral as sobreposições estão divididas. A primeira metade do ano possui intervalos que se sobrepoem entre si. A segunda metade possui intervalos que se sobrepoem entre si. Ainda, os meses de fevereiro a abril possuem intervalos que quase em nada se sobrepoen aos meses julho, agosto e setembro. Pensando nesse sentido, vemos que fevereiro parece ser a época do ano que possui maior variância, visto que seu intervalo quase não se sobrepoe ao de nenhum outro mês da segundo metade do ano. E no geral, os primeiros meses do ano podem ter maior variância.</p>
+<div id="e-qual-trimestre-do-ano-com-a-maior-movimentacao-no-github" class="section level3">
+<h3>E qual trimestre do ano com a maior movimentação no github?</h3>
+<pre class="r"><code>parte_do_ano = function(p) {
+  anw = ifelse(p &lt;= 3, 1, 
+               ifelse(p &gt; 3 &amp; p &lt;= 6, 2,
+                      ifelse(p &gt; 6 &amp; p &lt;= 9, 3, 4)
+               )
+        )
+  return(anw)
+}
+dados.2016$parte_do_ano = parte_do_ano(dados.2016$the_month)</code></pre>
+<pre class="r"><code>experiment2 = data.frame()
+
+for(p in c(1:4)) {
+  b = bootstrap(subset(dados.2016, parte_do_ano==p) , median(users))
+  parte.md = CI.percentile(b, probs = c(.025, .975))
+  names(parte.md) = c(&#39;X2.5&#39;, &#39;X97.5&#39;) 
+  parte.md$trimestre = p
+  experiment2 = data.frame(rbind(experiment2, data.frame(parte.md)))
+}</code></pre>
+<pre class="r"><code>experiment2 %&gt;% 
+  ggplot(aes(x=trimestre, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x=&quot;Trimestre&quot;, y=&quot;Intervalo de confiança&quot;) +
+  scale_x_discrete(limits=c(&#39;jan-mar&#39;, &#39;abril-jun&#39;, &#39;jul-set&#39;, &#39;out-dez&#39;))</code></pre>
+<p><img src="/blog/inferencies-report-p2_pt-br_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<pre class="r"><code>  # + geom_hline(yintercept = 0, colour = &quot;darkblue&quot;)</code></pre>
+<p>Aqui também temos alguns intervalos que se sobrepõem, mas com trechos de sobreposição menores. O primeiro trimestre tem um intervalo que em sua quase totalidade não se sobrepõe ao segundo e ao terceiro trimestre, e em nada se sobreprõe ao último trimestre. Desse modo, concluímos que os primeiros meses do ano (de janeiro a março) são os de maior movimentação no GitHub.</p>
+<pre class="r"><code>languages = unique(dados.2016$file_extension)</code></pre>
+</div>
+</div>
+<div id="ha-algum-dia-da-semana-em-que-as-pessoas-mais-programem" class="section level2">
+<h2>Há algum dia da semana em que as pessoas mais programem?</h2>
+<pre class="r"><code>dias_da_semana = c(&#39;segunda&#39;, &#39;terça&#39;, &#39;quarta&#39;, &#39;quinta&#39;, &#39;sexta&#39;)
+
+dados.semana = dados %&gt;% filter(week_day %in% dias_da_semana)
+
+experiment3 = data.frame()
+
+for(day in dias_da_semana) {
+  b = bootstrap(subset(dados.semana, week_day==day) , median(users))
+  days.median = CI.percentile(b, probs = c(.025, .975))
+  names(days.median) = c(&#39;X2.5&#39;, &#39;X97.5&#39;)
+  days.median$day = day
+  experiment3 = data.frame(rbind(experiment3, data.frame(days.median)))
+}</code></pre>
+<pre class="r"><code>experiment3 %&gt;% 
+  ggplot(aes(x=day, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x=&quot;Dia da semana&quot;, y=&quot;Intervalo de confiança&quot;)</code></pre>
+<p><img src="/blog/inferencies-report-p2_pt-br_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+<pre class="r"><code>  # + geom_hline(yintercept = 0, colour = &quot;darkblue&quot;)</code></pre>
+<p>Como os intervalos se sobrepõem para todos os dias da semana, então não podemos concluir que há um dia da semana em que as pessoas programem mais.</p>
+<p>Ainda motivado em encontrar espaços de tempo no ano / mes / dia da semana com maior movimentação, vamos tentar compreender em qual periodo do mês (início, meio ou fim) há maior movimentação no GitHub.</p>
+<div id="ha-algum-periodo-do-mes-inicio-meio-ou-fim-em-que-as-pessoas-programem-mais" class="section level3">
+<h3>Há algum período do mês (início, meio ou fim) em que as pessoas programem mais?</h3>
+<pre class="r"><code>periodo_do_mes = function(dia) {
+  anw = ifelse(dia &lt;= 7, &#39;inicio&#39;, 
+               ifelse(dia &gt; 10 &amp; dia &lt;= 20, &#39;meio&#39;, &#39;fim&#39;)
+        )
+  return(anw)
+}
+
+dados$periodo_do_mes = periodo_do_mes(dados$month_day)</code></pre>
+<pre class="r"><code>experiment4 = data.frame()
+
+periodos_do_mes = c(&#39;inicio&#39;, &#39;meio&#39;, &#39;fim&#39;)
+for(periodo in periodos_do_mes) {
+  b = bootstrap(subset(dados, periodos_do_mes==periodo) , median(users))
+  mes.periodo.md = CI.percentile(b, probs = c(.025, .975))
+  names(mes.periodo.md) = c(&#39;X2.5&#39;, &#39;X97.5&#39;) 
+  mes.periodo.md$periodo_do_mes = periodo
+  experiment4 = data.frame(rbind(experiment4, data.frame(mes.periodo.md)))
+}</code></pre>
+<pre class="r"><code>experiment4 %&gt;% 
+  ggplot(aes(x=periodo_do_mes, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x=&quot;Período do mês&quot;, y=&quot;Intervalo de confiança&quot;)</code></pre>
+<p><img src="/blog/inferencies-report-p2_pt-br_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<pre class="r"><code>  # + geom_hline(yintercept = 0, colour = &quot;darkblue&quot;)</code></pre>
+<p>Para o caso de um dado mês, também não é possível afirmar que haja um determinado período (início, meio ou fim) em que as pessoas programem mais, visto que o intervalo de confiança entre os períodos se sobrepõem em quase sua totalidade.</p>
+</div>
+</div>
+</div>
