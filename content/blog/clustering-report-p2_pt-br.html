@@ -1,0 +1,158 @@
+---
+title: "Agrupando filmes da Era de ouro de Hollywood"
+author: "Italo Batista"
+date: "2017-07-20"
+---
+
+
+
+<pre class="r"><code>library(tidyverse, warn.conflicts = F)</code></pre>
+<pre class="r"><code>library(rvest)
+library(plotly)
+library(cluster)
+library(ggdendro)
+library(ggfortify)
+library(broom)
+library(GGally)
+library(reshape2)
+library(gridExtra)
+library(factoextra)
+library(here)
+theme_set(theme_light())</code></pre>
+<p>Esta análise, realizada no contexto da disciplina Análise de Dados 1 (Computação @ UFCG), tem por objetivo identificar agrupamentos em dados sobre quantidade de falas dos personagens de diferentes gêneros em filmes de hollywood. Essa análise serve de mote para trabalharmos com algumas técnicas de <strong>agrupamento de múltiplas (&gt; 2) dimensões</strong> utilizando a técnica k-means.</p>
+<p>Os dados aqui utilizados foram organizados por Matthew Daniels e estão disponíveis <a href="https://github.com/matthewfdaniels/scripts">aqui</a>.</p>
+<p>Nesta análise, fazemos um recorte no tempo. Não utilizaremos todos os filmes, mas apenas aqueles que fazem parte do período de tempo conhecido como <strong>Era de ouro de Hollywood</strong>, da década de 20 até o fim dos anos 60’s.</p>
+<pre class="r"><code>characters = read_csv(here::here(&quot;data/character_list5.csv&quot;))
+big_data = read_csv(here::here(&quot;data/meta_data7.csv&quot;)) %&gt;% na.omit()</code></pre>
+<pre class="r"><code>data_golden_age = big_data %&gt;% filter(year &lt; 1970) %&gt;% select(script_id, title, gross) 
+characters_golde_age = characters %&gt;% filter(script_id %in% data_golden_age$script_id) %&gt;% select(-c(age))</code></pre>
+<p>Vamos agrupar os filmes segundo as seguintes variáveis:</p>
+<ul>
+<li>tamanho do elenco</li>
+<li>proporção de homens no elenco</li>
+<li>bilheteria</li>
+<li>quantidade de palavras no filme (se um filme é mais contemplativo ou tem mais diálogos)</li>
+</ul>
+<p>Primeiro, vamos organizar o os dados de modo a obter essas variáveis.</p>
+<p>Calculando o número de personagens por filme:</p>
+<pre class="r"><code>elenco = characters_golde_age %&gt;%
+  group_by(script_id) %&gt;%
+  summarise(elenco_tam = n())</code></pre>
+<p>Calculando a quantidade de palavras no filme, para ter uma ideia da quantidade de diálogos no filme:</p>
+<pre class="r"><code>tam_dialogo = characters_golde_age %&gt;%
+  group_by(script_id) %&gt;%
+  summarise(tam_dialogo = sum(words))</code></pre>
+<p>Calculando a proporção de homens</p>
+<pre class="r"><code>homens = characters_golde_age %&gt;%
+  filter(gender == &quot;m&quot;) %&gt;%
+  group_by(script_id) %&gt;%
+  summarise(n_homens = n())
+
+homens = full_join(homens, elenco, by=&quot;script_id&quot;)
+
+homens$prop_homens = round(homens$n_homens / homens$elenco_tam, digits=2)</code></pre>
+<p>Organizando essas informações:</p>
+<pre class="r"><code>d = data_golden_age
+d = full_join(d, homens, by=&quot;script_id&quot;)
+d = full_join(d, tam_dialogo, by=&quot;script_id&quot;) %&gt;% select(-n_homens)
+names(d)[3] = &quot;bilheteria&quot;</code></pre>
+<p>Deste modo, temos os seguintes dados:</p>
+<pre class="r"><code>head(d)</code></pre>
+<pre><code>## # A tibble: 6 x 6
+##   script_id title            bilheteria elenco_tam prop_homens tam_dialogo
+##       &lt;int&gt; &lt;chr&gt;                 &lt;int&gt;      &lt;int&gt;       &lt;dbl&gt;       &lt;int&gt;
+## 1       625 2001: A Space O…        376          9       0.890        4401
+## 2      7075 El Dorado                47         12       0.750       11660
+## 3      8521 Frankenstein            298          5       0.800        3799
+## 4      3016 Ninotchka                45         12       0.830       15949
+## 5      4745 On the Waterfro…        185         14       0.860       11231
+## 6      4791 Planet of the A…        172         12       0.830        7974</code></pre>
+<p>Cada observação é um filme, que possui um id (<em>script_id</em>), o título do filme (<em>title</em>), bilheteria corrigida (<em>gross</em>), tamanho do elenco (<em>elenco_tam</em>), proporção de homens no elenco (<em>prop_homens</em>), soma do número de palavras ditas por todos as personagens do filme (<em>tam_dialogo</em>).</p>
+<pre class="r"><code>d %&gt;% select(-title, -script_id) %&gt;% summary()</code></pre>
+<pre><code>##    bilheteria       elenco_tam      prop_homens      tam_dialogo   
+##  Min.   :   6.0   Min.   : 3.000   Min.   :0.4000   Min.   : 3799  
+##  1st Qu.:  36.0   1st Qu.: 7.250   1st Qu.:0.6300   1st Qu.: 7062  
+##  Median : 178.5   Median :11.000   Median :0.8100   Median : 8414  
+##  Mean   : 309.6   Mean   : 9.812   Mean   :0.7475   Mean   : 9587  
+##  3rd Qu.: 455.8   3rd Qu.:12.000   3rd Qu.:0.8650   3rd Qu.:11338  
+##  Max.   :1029.0   Max.   :15.000   Max.   :1.0000   Max.   :21480</code></pre>
+<p>É possível perceber que as variáveis são bastante assimétricas. Vamos transformá-las de modo a termos um intervalo próximo entre elas, mas preservando proporcionalmente as diferenças entre filmes. Isos nos ajudará a criar melhores visualizações dos grupos.</p>
+<pre class="r"><code>d.temp = d
+d.temp$prop_homens = d.temp$prop_homens * 100
+d.temp$elenco_tam = d.temp$elenco_tam * 10
+d.scaled = d.temp %&gt;% 
+  select(title, bilheteria, elenco_tam, tam_dialogo, prop_homens) %&gt;%
+  mutate_each(funs(log), 2:5)</code></pre>
+<pre><code>## `mutate_each()` is deprecated.
+## Use `mutate_all()`, `mutate_at()` or `mutate_if()` instead.
+## To map `funs` over a selection of variables, use `mutate_at()`</code></pre>
+<p>Vamos visualizar como os dados transformados se comportam:</p>
+<pre class="r"><code>d.scaled %&gt;% select(-title) %&gt;% ggpairs()</code></pre>
+<p><img src="/blog/clustering-report-p2_pt-br_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>Como nossos dados contêm poucos filmes (17 apenas), não conseguimos identificar agrupamentos bem definidos de duas dimensões. Os dados parecem estar bem dispersos. Vamos proceder com o agrupamento de 4 dimensões utilizando o algoritmo kmeans, de modo a identificar grupos de filmes da era de ouro segundo as quatro as variáveis organizadas acima.</p>
+<blockquote>
+<p>O k-means é um método de agrupamento que objetiva particionar n observações dentre k grupos onde cada observação pertence ao grupo mais próximo da média.</p>
+</blockquote>
+<blockquote>
+<p>O K-Means busca minimizar a distância dos elementos a um conjunto de k centros de forma iterativa. A distância entre um ponto e um conjunto de clusters é definida como sendo a distância do ponto ao centro mais próximo dele.</p>
+</blockquote>
+<p>O algoritmo do K-Means pode ser descrito da seguinte maneira:</p>
+<ul>
+<li>1: Escolher k distintos valores para centros dos grupos (possivelmente, de forma aleatória)</li>
+<li>2: Associar cada ponto ao centro mais próximo</li>
+<li>3: Recalcular o centro de cada grupo</li>
+<li>4: Repetir os passos 2-3 até nenhum elemento mudar de grupo.</li>
+</ul>
+<p>Normalmente, o usuário que decide quantos grupos (k=número de grupos) gostaria que o k-means pudesse identificar. Isto costuma ser um problema, tendo em vista que normalmente não se sabe quantos clusters existem a priori.</p>
+<p>A seguinte visualização pode nos ajudar:</p>
+<pre class="r"><code>set.seed(24)
+
+explorando_k = tibble(k = 1:15) %&gt;% 
+    group_by(k) %&gt;% 
+    do(
+        kmeans(select(d.scaled, -title), 
+               centers = .$k, 
+               nstart = 20) %&gt;% glance()
+    )
+explorando_k %&gt;% 
+    ggplot(aes(x = k, y = betweenss / totss)) + 
+    geom_line() + 
+    geom_point()</code></pre>
+<p><img src="/blog/clustering-report-p2_pt-br_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<p>A ideia do gráfico acima é: um número k de grupos será uma boa escolha enquanto a linha crescer. No momento em que a linha começar a cresce de maneira não significativa, então k já não será um bom número de grupos.</p>
+<p>Podemos então escolher k = 4 ou 5 ou 6… Vamos escolher k = 4, ou seja, vamos usar o k-means para identificar 4 grupos.</p>
+<pre class="r"><code>set.seed(24)
+
+n_clusters = 4
+
+km = d.scaled %&gt;% 
+    select(-title) %&gt;% 
+    kmeans(centers = n_clusters, nstart = 20)</code></pre>
+<p>Vamos plotar um gráfico silhueta para identificar a qualidade do agrupamento.</p>
+<pre><code>##   cluster size ave.sil.width
+## 1       1    2          0.53
+## 2       2    5          0.61
+## 3       3    4          0.32
+## 4       4    5          0.45</code></pre>
+<p><img src="/blog/clustering-report-p2_pt-br_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
+<p>Como nenhuma barra cresce se extende o lado negativo (para baixo), então nenhum grupo (diferenciados pelas cores) tem pontos que se aproximam mais de outros grupos do que do seu próprio. Os clusters foram bem definidos.</p>
+<p>Organizando os dados segundo os grupos identificados:</p>
+<pre class="r"><code>d.scaled.km.long = km %&gt;% 
+    augment(d.scaled) %&gt;%
+    gather(key = &quot;variável&quot;, 
+           value = &quot;valor&quot;, 
+           -title, -.cluster)</code></pre>
+<p>Visualizando os grupos:</p>
+<pre class="r"><code>d.scaled.km.long %&gt;% 
+    ggplot(aes(x=`variável`, y=valor, group=title, colour=.cluster)) + 
+    geom_line(alpha = .5) + 
+    facet_wrap(~ .cluster) </code></pre>
+<p><img src="/blog/clustering-report-p2_pt-br_files/figure-html/unnamed-chunk-21-1.png" width="768" /></p>
+<p>Vamos identificar esses grupos!</p>
+<p>Primeiro vemos que a proporção de personagens homens e de diálogos não se diferencia muito entre os grupos. Então vamos focar mais em tamanho do elenco e bilheteria :)</p>
+<ul>
+<li>O grupo 1 parece ser o grupo de filmes com um tamanho de elenco um pouco menor e de <em>bilheteria mais baixa</em>! Filmes de <strong>baixo orçamento</strong> (para elenco/divulgação)? Talvez.</li>
+<li>O grupo 2 é de filmes com um elenco de tamanho médio, mas com uma bilheteria melhor que o grupo 1. Filmes menos populares? Pelo fato de terem um elenco melhor (maior orçamento), mas com bilheteria média.</li>
+<li>O grupo 3 também é de filmes com elenco de tamanho médio. Contudo, neste grupo os filmes têm boa bilheteria! Filmes <strong>de sucesso</strong>?</li>
+<li>Por fim, o grupo t4 é de filmes que parecem ter recebido <strong>alto investimento</strong>, pois têm um elenco ligeiramente maior e tiveram uma ótima bilheteria!</li>
+</ul>
