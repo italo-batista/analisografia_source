@@ -1,7 +1,7 @@
 ---
 title: "Teste de Hipótese"
 author: "Italo Batista"
-date: "2017-08-7"
+date: "2017-08-07"
 ---
 
 
@@ -93,23 +93,23 @@ experiment1_4 = permutationTest2(data=dados.2016.trim_1, statistic=median(users)
 <pre class="r"><code>experiment1_2$stats %&gt;% t()</code></pre>
 <pre><code>##             median(users): dados.2016.trim_1-dados.2016.trim_2
 ## Observed    &quot;128.5&quot;                                           
-## Mean        &quot;0.1475148&quot;                                       
+## Mean        &quot;0.05280528&quot;                                      
 ## Alternative &quot;two.sided&quot;                                       
-## PValue      &quot;0.0034&quot;</code></pre>
+## PValue      &quot;0.0032&quot;</code></pre>
 <p>P-VALOR: 0.0042</p>
 <pre class="r"><code>experiment1_3$stats %&gt;% t()</code></pre>
 <pre><code>##             median(users): dados.2016.trim_1-dados.2016.trim_3
 ## Observed    &quot;182.5&quot;                                           
-## Mean        &quot;0.9521452&quot;                                       
+## Mean        &quot;0.7684768&quot;                                       
 ## Alternative &quot;two.sided&quot;                                       
-## PValue      &quot;6e-04&quot;</code></pre>
+## PValue      &quot;4e-04&quot;</code></pre>
 <p>P-VALOR: 0.0004</p>
 <pre class="r"><code>experiment1_4$stats %&gt;% t()</code></pre>
 <pre><code>##             median(users): dados.2016.trim_1-dados.2016.trim_4
 ## Observed    &quot;184.5&quot;                                           
-## Mean        &quot;0.59991&quot;                                         
+## Mean        &quot;0.2388739&quot;                                       
 ## Alternative &quot;two.sided&quot;                                       
-## PValue      &quot;8e-04&quot;</code></pre>
+## PValue      &quot;6e-04&quot;</code></pre>
 <p>P-VALOR: 0.0006</p>
 <p>Como p-valor deu baixo (&lt; 0.05) em todas as três situações, então no meu mundo aleatório {0.42, 0.04 e 0.06} % das vezes não ocorre o que eu quero atestar com a hipótese nula. Como esse valor é menor que o grau de confiança (&lt; 0.05), eu rejeito a hipótese nula. Nesse sentido, não temos evidências suficientes para dizer que a não há diferência muito grante entre a movimentação do primeiro trimestre e alguns dos outros trê (relembre nossa hipóteses H0 e H1). Nesse sentido, é provável (ou é estatisticamente considerável) que a diferença entre o primeiro trimestre do ano e o outros seja alta/significativa.<br />
 Esse resultado é compatível com a pergunta 2 da nossa <a href="https://italo-batista.github.io/analisografia//2017/08/analise-inferencia-ic-p2.html">última análise</a>, feita com Intervalos de Confiança, em que nos questionamos sobre qual era o trimestre com maior movimentação no github e descobrimos que era o primeiro!</p>
