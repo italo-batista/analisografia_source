@@ -1,4 +1,3 @@
-==========
 
 Made with [Hugo](https://gohugo.io/) <3.
 
